@@ -1,0 +1,20 @@
+# Keep line endings stable no matter whose machine the repository is on.
+#
+# Git on Windows converts line endings on checkout by default, which makes a
+# file look entirely rewritten in `git diff` when only a line or two changed.
+# Pinning them to LF keeps diffs honest and keeps shell scripts executable.
+
+* text=auto eol=lf
+
+Makefile      text eol=lf
+*.sh          text eol=lf
+*.py          text eol=lf
+*.yaml        text eol=lf
+*.yml         text eol=lf
+Dockerfile    text eol=lf
+
+# Binary files Git must not touch.
+*.png binary
+*.jpg binary
+*.pdf binary
+*.zip binary

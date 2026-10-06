@@ -1,0 +1,309 @@
+<!doctype html>
+<!--
+  CoGNETs Swarm Arena - live leaderboard.
+
+  Deliberately plain: no build step, no framework, no CDN. It polls two
+  endpoints once a second and redraws. This doubles as the projector display
+  on the day, so it is designed to be readable from the back of a room.
+
+  Copyright 2026 The CoGNETs Consortium
+  SPDX-License-Identifier: Apache-2.0
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CoGNETs Swarm Arena</title>
+<style>
+  :root {
+    --ink: #12232e;
+    --muted: #5b6b7b;
+    --rule: #dbe4ec;
+    --bg: #f7fafc;
+    --card: #ffffff;
+    --accent: #0b6e99;
+    --accent2: #c2410c;
+    --good: #15803d;
+    --bad: #b91c1c;
+    --bot: #64748b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e8eef4; --muted: #93a4b5; --rule: #24384a; --bg: #0d1b26;
+      --card: #12242f; --accent: #4aa8cf; --accent2: #f08a4b;
+      --good: #4ade80; --bad: #f87171; --bot: #7b8da0;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  header {
+    padding: 18px 24px 14px; border-bottom: 1px solid var(--rule);
+    display: flex; flex-wrap: wrap; gap: 18px; align-items: baseline;
+    background: var(--card);
+  }
+  h1 { margin: 0; font-size: 20px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 13px; }
+  .pill {
+    display: inline-block; padding: 2px 9px; border-radius: 99px;
+    background: var(--bg); border: 1px solid var(--rule);
+    font-size: 12px; color: var(--muted);
+  }
+  .pill b { color: var(--ink); font-variant-numeric: tabular-nums; }
+  main { padding: 20px 24px 60px; max-width: 1180px; margin: 0 auto; }
+  .stats {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px; margin-bottom: 20px;
+  }
+  .stat {
+    background: var(--card); border: 1px solid var(--rule);
+    border-radius: 10px; padding: 12px 14px;
+  }
+  .stat .label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: var(--muted); margin-bottom: 4px;
+  }
+  .stat .value {
+    font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums;
+  }
+  .progress {
+    height: 5px; background: var(--rule); border-radius: 99px;
+    overflow: hidden; margin-top: 8px;
+  }
+  .progress > i { display: block; height: 100%; background: var(--accent); }
+  table { width: 100%; border-collapse: collapse; background: var(--card);
+          border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; }
+  th, td { padding: 9px 12px; text-align: left; border-bottom: 1px solid var(--rule); }
+  th {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--muted); font-weight: 600; background: var(--bg);
+    white-space: nowrap;
+  }
+  td { font-variant-numeric: tabular-nums; }
+  tr:last-child td { border-bottom: none; }
+  .rank { width: 40px; color: var(--muted); font-weight: 600; }
+  .team { font-weight: 600; }
+  .score { font-weight: 700; font-size: 15px; }
+  .baseline .team { color: var(--bot); font-weight: 500; }
+  .baseline .team::after {
+    content: "bot"; margin-left: 7px; font-size: 10px; padding: 1px 6px;
+    border: 1px solid var(--rule); border-radius: 99px;
+    color: var(--muted); font-weight: 600; text-transform: uppercase;
+    vertical-align: middle;
+  }
+  .lead { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+  .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+         margin-right: 6px; vertical-align: middle; }
+  .on { background: var(--good); }
+  .off { background: #cbd5e1; }
+  .out { background: var(--bad); }
+  .warn { color: var(--accent2); font-weight: 600; }
+  .zero { color: var(--muted); }
+  .bar { height: 6px; background: var(--rule); border-radius: 99px; overflow: hidden;
+         min-width: 60px; }
+  .bar > i { display: block; height: 100%; background: var(--accent); }
+  .baseline .bar > i { background: var(--bot); }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em;
+       color: var(--muted); margin: 26px 0 10px; }
+  svg { display: block; width: 100%; height: 90px; }
+  .card { background: var(--card); border: 1px solid var(--rule);
+          border-radius: 10px; padding: 14px; }
+  .empty { color: var(--muted); padding: 28px; text-align: center; }
+  footer { color: var(--muted); font-size: 12px; margin-top: 26px; }
+  code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+         background: var(--bg); padding: 1px 5px; border-radius: 4px;
+         border: 1px solid var(--rule); font-size: 12px; }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>CoGNETs Swarm Arena</h1>
+    <div class="sub" id="subtitle">connecting&hellip;</div>
+  </div>
+  <div style="margin-left:auto; display:flex; gap:8px; flex-wrap:wrap">
+    <span class="pill">scenario <b id="p-scenario">&mdash;</b></span>
+    <span class="pill">round <b id="p-round">&mdash;</b></span>
+    <span class="pill">chaos <b id="p-chaos">&mdash;</b></span>
+    <span class="pill">nodes <b id="p-nodes">&mdash;</b></span>
+  </div>
+</header>
+
+<main>
+  <div class="stats">
+    <div class="stat">
+      <div class="label">Round</div>
+      <div class="value" id="s-round">&mdash;</div>
+      <div class="progress"><i id="s-progress" style="width:0%"></i></div>
+    </div>
+    <div class="stat">
+      <div class="label">Closes in</div>
+      <div class="value" id="s-remaining">&mdash;</div>
+    </div>
+    <div class="stat">
+      <div class="label">Log social welfare</div>
+      <div class="value" id="s-lsw">&mdash;</div>
+    </div>
+    <div class="stat">
+      <div class="label">Active nodes</div>
+      <div class="value" id="s-active">&mdash;</div>
+    </div>
+    <div class="stat">
+      <div class="label">Injected faults</div>
+      <div class="value" id="s-faults">&mdash;</div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th class="rank">#</th>
+        <th>Team</th>
+        <th style="text-align:right">Score</th>
+        <th style="width:120px">Relative</th>
+        <th style="text-align:right">Rounds</th>
+        <th style="text-align:right">Missed</th>
+        <th style="text-align:right">Floors</th>
+        <th style="text-align:right">&kappa;</th>
+        <th style="text-align:right">Battery</th>
+        <th>State</th>
+      </tr>
+    </thead>
+    <tbody id="rows">
+      <tr><td colspan="10" class="empty">Waiting for the first round to settle&hellip;</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Log social welfare per round</h2>
+  <div class="card"><svg id="spark" viewBox="0 0 600 90" preserveAspectRatio="none"></svg></div>
+
+  <footer>
+    Polls <code>/v1/leaderboard</code> and <code>/v1/status</code> every second.
+    API docs at <code>/docs</code>. Everything is Apache-2.0.
+  </footer>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var $ = function (id) { return document.getElementById(id); };
+  var fmt = function (n, d) {
+    if (n === null || n === undefined) return "—";
+    return Number(n).toFixed(d === undefined ? 2 : d);
+  };
+
+  function stateCell(row) {
+    if (row.ejected) return '<span class="dot out"></span>ejected';
+    if (row.active) return '<span class="dot on"></span>active';
+    return '<span class="dot off"></span>lease expired';
+  }
+
+  function renderRows(rows) {
+    var body = $("rows");
+    if (!rows.length) {
+      body.innerHTML = '<tr><td colspan="10" class="empty">No nodes registered yet.</td></tr>';
+      return;
+    }
+    var top = Math.max.apply(null, rows.map(function (r) { return r.score; }).concat([1e-6]));
+    body.innerHTML = rows.map(function (r, i) {
+      var cls = [];
+      if (r.is_baseline) cls.push("baseline");
+      if (i === 0 && r.score > 0) cls.push("lead");
+      var pct = top > 0 ? Math.max(0, (r.score / top) * 100) : 0;
+      return '<tr class="' + cls.join(" ") + '">' +
+        '<td class="rank">' + r.rank + '</td>' +
+        '<td class="team">' + escapeHtml(r.team) + '</td>' +
+        '<td class="score" style="text-align:right">' + fmt(r.score, 3) + '</td>' +
+        '<td><div class="bar"><i style="width:' + pct.toFixed(1) + '%"></i></div></td>' +
+        '<td style="text-align:right">' + r.rounds_participated + '</td>' +
+        '<td style="text-align:right" class="' + (r.rounds_missed ? "warn" : "zero") + '">' +
+          r.rounds_missed + '</td>' +
+        '<td style="text-align:right" class="' + (r.floor_violations ? "warn" : "zero") + '">' +
+          r.floor_violations + '</td>' +
+        '<td style="text-align:right" class="' + (r.compromise > 0 ? "warn" : "zero") + '">' +
+          fmt(r.compromise, 2) + '</td>' +
+        '<td style="text-align:right">' + fmt(r.battery, 2) + '</td>' +
+        '<td>' + stateCell(r) + '</td>' +
+        '</tr>';
+    }).join("");
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+
+  function renderSpark(series) {
+    var svg = $("spark");
+    if (!series || series.length < 2) {
+      svg.innerHTML = '<text x="8" y="48" fill="#94a3b8" font-size="12">' +
+        'not enough settled rounds yet</text>';
+      return;
+    }
+    var W = 600, H = 90, pad = 8;
+    var min = Math.min.apply(null, series), max = Math.max.apply(null, series);
+    var span = (max - min) || 1;
+    var pts = series.map(function (v, i) {
+      var x = pad + (i / (series.length - 1)) * (W - 2 * pad);
+      var y = H - pad - ((v - min) / span) * (H - 2 * pad);
+      return x.toFixed(1) + "," + y.toFixed(1);
+    });
+    var area = "M" + pad + "," + (H - pad) + " L" + pts.join(" L") +
+               " L" + (W - pad) + "," + (H - pad) + " Z";
+    svg.innerHTML =
+      '<path d="' + area + '" fill="rgba(11,110,153,0.12)"/>' +
+      '<polyline points="' + pts.join(" ") + '" fill="none" ' +
+        'stroke="#0b6e99" stroke-width="2" stroke-linejoin="round"/>' +
+      '<text x="' + (W - pad) + '" y="14" text-anchor="end" fill="#94a3b8" ' +
+        'font-size="11">max ' + max.toFixed(2) + '</text>' +
+      '<text x="' + (W - pad) + '" y="' + (H - 2) + '" text-anchor="end" ' +
+        'fill="#94a3b8" font-size="11">min ' + min.toFixed(2) + '</text>';
+  }
+
+  function tick() {
+    fetch("/v1/leaderboard", { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var st = data.status || {};
+        renderRows(data.leaderboard || []);
+        $("p-scenario").textContent = st.scenario || "—";
+        $("p-round").textContent = (st.round || 0) + " / " + (st.total_rounds || 0);
+        $("p-chaos").textContent = fmt(st.chaos_rate, 2);
+        $("p-nodes").textContent = (st.nodes_active || 0) + " / " + (st.nodes_registered || 0);
+        $("s-round").textContent = (st.round || 0) + " / " + (st.total_rounds || 0);
+        $("s-remaining").textContent = st.finished ? "finished"
+          : fmt(st.seconds_remaining, 1) + "s";
+        $("s-lsw").textContent = st.last_lsw === null || st.last_lsw === undefined
+          ? "—" : fmt(st.last_lsw, 2);
+        $("s-active").textContent = (st.nodes_active || 0);
+        var pct = st.total_rounds ? ((st.round || 0) / st.total_rounds) * 100 : 0;
+        $("s-progress").style.width = Math.min(100, pct).toFixed(1) + "%";
+        $("subtitle").textContent = st.finished
+          ? "Run finished — final standings"
+          : (st.started ? "Live" : "Waiting for agents to register…");
+        renderSpark(st.lsw_series || []);
+      })
+      .catch(function () {
+        $("subtitle").textContent = "arena unreachable — retrying";
+      });
+
+    fetch("/v1/status", { cache: "no-store" })
+      .then(function (r) { return r.json(); })
+      .then(function (st) {
+        var f = st.faults || {};
+        var total = (f.injected_503 || 0) + (f.injected_429 || 0);
+        $("s-faults").textContent = total;
+      })
+      .catch(function () {});
+  }
+
+  tick();
+  setInterval(tick, 1000);
+})();
+</script>
+</body>
+</html>

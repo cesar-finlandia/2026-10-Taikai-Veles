@@ -1,0 +1,95 @@
+# CoGNETs Swarm Arena - the whole environment.
+#
+#   docker compose up -d arena baselines   # the arena and your three opponents
+#   docker compose up --build agent        # your agent
+#   docker compose down -v                 # reset everything
+#
+# Copyright 2026 The CoGNETs Consortium
+# SPDX-License-Identifier: Apache-2.0
+
+name: cognets-swarm-arena
+
+x-bot: &bot
+  build:
+    context: .
+    dockerfile: baselines/Dockerfile
+  environment:
+    ARENA_URL: http://arena:8080
+    LOG_LEVEL: ${LOG_LEVEL:-WARNING}
+  depends_on:
+    arena:
+      condition: service_healthy
+  restart: unless-stopped
+
+services:
+  arena:
+    build:
+      context: .
+      dockerfile: arena/Dockerfile
+    container_name: swarm-arena
+    ports:
+      - "${ARENA_PORT:-8080}:8080"
+    environment:
+      ARENA_SCENARIO: ${SCENARIO:-practice}
+      # Leave ARENA_SEED unset to use the scenario's own seed. The organisers
+      # inject the real one at grading time.
+      ARENA_SEED: ${ARENA_SEED:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - |
+          import urllib.request, sys
+          sys.exit(0 if urllib.request.urlopen(
+              'http://127.0.0.1:8080/healthz', timeout=2).status == 200 else 1)
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 5s
+    restart: unless-stopped
+
+  # --- your three opponents ------------------------------------------------
+  bot-naive-max:
+    <<: *bot
+    container_name: bot-naive-max
+    environment:
+      ARENA_URL: http://arena:8080
+      BOT: naive-max
+      TEAM_NAME: bot-naive-max
+      LOG_LEVEL: ${LOG_LEVEL:-WARNING}
+
+  bot-even-split:
+    <<: *bot
+    container_name: bot-even-split
+    environment:
+      ARENA_URL: http://arena:8080
+      BOT: even-split
+      TEAM_NAME: bot-even-split
+      LOG_LEVEL: ${LOG_LEVEL:-WARNING}
+
+  bot-proportional:
+    <<: *bot
+    container_name: bot-proportional
+    environment:
+      ARENA_URL: http://arena:8080
+      BOT: proportional
+      TEAM_NAME: bot-proportional
+      LOG_LEVEL: ${LOG_LEVEL:-WARNING}
+
+  # --- you -----------------------------------------------------------------
+  agent:
+    build:
+      context: ./agent-template
+      dockerfile: Dockerfile
+    container_name: my-agent
+    environment:
+      ARENA_URL: http://arena:8080
+      TEAM_NAME: ${TEAM_NAME:?set TEAM_NAME in your .env file}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      arena:
+        condition: service_healthy
+    profiles: ["agent"]
+    restart: "no"

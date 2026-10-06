@@ -1,0 +1,53 @@
+# Graded scenario - the shape of the run your submission is scored on.
+#
+# Rounds are shorter, the run is longer, and the arena injects 503s, 429s and
+# latency. Rehearse against this before you submit: `make graded`.
+#
+# ---------------------------------------------------------------------------
+# THE SEED BELOW IS A PLACEHOLDER.
+#
+# The real grading run uses a seed that is not published in advance, injected
+# by the organisers via ARENA_SEED. Your agent must therefore work on any seed:
+# an agent that has memorised a particular sequence of capacities scores zero
+# on strategy. The real seed is published with the results, so you can
+# reproduce your own run afterwards.
+# ---------------------------------------------------------------------------
+
+name: graded
+
+# --- round cadence ---------------------------------------------------------
+round_seconds: 4.0
+total_rounds: 60
+lease_seconds: 12.0
+
+# --- economy ---------------------------------------------------------------
+base_budget: 1.0
+budget_jitter: 0.25
+capacity_base: 1.0
+capacity_jitter: 0.30
+
+# --- device physics --------------------------------------------------------
+# Charge burned per unit of ENERGY SHARE won (before the mobility surcharge).
+# Winning energy is not free: it comes out of your own battery.
+battery_drain: 0.30
+idle_drain: 0.004
+battery_cutoff: 0.05
+recharge_rate: 0.22
+
+# --- admission gate --------------------------------------------------------
+kappa_bar: 0.60
+kappa_penalty: 0.05
+
+# --- hostility -------------------------------------------------------------
+chaos_rate: 0.08
+latency_ms: 250
+
+# --- determinism -----------------------------------------------------------
+seed: 20261006
+
+# --- field -----------------------------------------------------------------
+baselines: [naive-max, even-split, proportional]
+
+# --- lifecycle -------------------------------------------------------------
+autostart: true
+start_delay_seconds: 10.0

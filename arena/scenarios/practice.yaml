@@ -1,0 +1,44 @@
+# Practice scenario - what you develop against all day.
+#
+# Fast rounds so you get feedback quickly, and no injected faults so a bug in
+# your agent is obviously a bug in your agent. Switch to `graded` once your
+# core loop works, because that is the one you are scored on.
+
+name: practice
+
+# --- round cadence ---------------------------------------------------------
+round_seconds: 6.0
+total_rounds: 40
+lease_seconds: 12.0
+
+# --- economy ---------------------------------------------------------------
+base_budget: 1.0
+budget_jitter: 0.25
+capacity_base: 1.0
+capacity_jitter: 0.30
+
+# --- device physics --------------------------------------------------------
+# Charge burned per unit of ENERGY SHARE won (before the mobility surcharge).
+# Winning energy is not free: it comes out of your own battery.
+battery_drain: 0.30
+idle_drain: 0.004
+battery_cutoff: 0.05
+recharge_rate: 0.22
+
+# --- admission gate --------------------------------------------------------
+kappa_bar: 0.60
+kappa_penalty: 0.05
+
+# --- hostility -------------------------------------------------------------
+chaos_rate: 0.0
+latency_ms: 0
+
+# --- determinism -----------------------------------------------------------
+seed: 20261006
+
+# --- field -----------------------------------------------------------------
+baselines: [naive-max, even-split, proportional]
+
+# --- lifecycle -------------------------------------------------------------
+autostart: true
+start_delay_seconds: 8.0
